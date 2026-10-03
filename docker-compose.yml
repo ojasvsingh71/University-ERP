@@ -1,0 +1,22 @@
+# Local development database only. Production deployment should use a managed Postgres instance.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: erp_user
+      POSTGRES_PASSWORD: erp_password
+      POSTGRES_DB: university_erp
+    ports:
+      - "5432:5432"
+    volumes:
+      - erp_pgdata:/var/lib/postgresql/data
+      - ./scripts/init-extensions.sql:/docker-entrypoint-initdb.d/init-extensions.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_user -d university_erp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  erp_pgdata:
