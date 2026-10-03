@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 const ROLE_PROTECTED_PREFIXES: { prefix: string; roles: string[] }[] = [
   { prefix: "/api/users", roles: ["super_admin"] },
   { prefix: "/api/academic", roles: ["super_admin", "university_admin", "department_admin"] },
-  { prefix: "/api/attendance", roles: ["faculty", "super_admin", "department_admin"] },
+  { prefix: "/api/attendance", roles: ["faculty", "super_admin", "department_admin", "student", "parent"] },
   {
     prefix: "/api/exams",
     roles: ["faculty", "hod", "department_admin", "examination_controller", "super_admin"],

@@ -99,6 +99,13 @@ const MODULE_CARDS: Record<string, ModuleCard[]> = {
   ],
   student: [
     {
+      label: "My Attendance",
+      description: "View your attendance percentage and class session breakdown.",
+      icon: "📅",
+      color: "bg-sky-50 border-sky-200 text-sky-700",
+      href: "/attendance",
+    },
+    {
       label: "My Results",
       description: "View your published examination results and grades.",
       icon: "🏆",
@@ -114,6 +121,13 @@ const MODULE_CARDS: Record<string, ModuleCard[]> = {
     },
   ],
   parent: [
+    {
+      label: "Ward's Attendance",
+      description: "Monitor your ward's attendance across all enrolled courses.",
+      icon: "📅",
+      color: "bg-sky-50 border-sky-200 text-sky-700",
+      href: "/attendance",
+    },
     {
       label: "Ward's Results",
       description: "View your ward's published results and attendance.",
