@@ -1,6 +1,24 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import {
+  Calendar,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Users,
+  Search,
+  Save,
+  Check,
+  AlertCircle,
+  Clock,
+  Layers,
+  ChevronRight,
+  Filter,
+  RefreshCw,
+  Sparkles,
+  BookOpen
+} from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,8 +52,6 @@ interface StudentRecord {
 type LoadState = "idle" | "loading" | "ready" | "error";
 type SaveState = "idle" | "saving" | "saved" | "error";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function todayLocal(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -44,53 +60,13 @@ function todayLocal(): string {
   return `${y}-${m}-${day}`;
 }
 
-function pctColor(pct: number | null): string {
-  if (pct === null) return "text-slate-400";
-  if (pct >= 75) return "text-emerald-600";
-  if (pct >= 60) return "text-amber-600";
-  return "text-red-600";
-}
-
-function statusBadge(status: AttendanceStatus | null) {
-  switch (status) {
-    case "present":
-      return "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300";
-    case "absent":
-      return "bg-red-100 text-red-700 ring-1 ring-red-300";
-    case "excused":
-      return "bg-amber-100 text-amber-700 ring-1 ring-amber-300";
-    default:
-      return "bg-slate-100 text-slate-500 hover:bg-slate-200";
-  }
-}
-
-// ─── Summary bar ─────────────────────────────────────────────────────────────
-
-function SummaryBar({ attendance }: { attendance: Record<string, AttendanceStatus> }) {
-  const counts = { present: 0, absent: 0, excused: 0 };
-  for (const v of Object.values(attendance)) counts[v]++;
-  const total = Object.keys(attendance).length;
-  if (total === 0) return null;
-
-  return (
-    <div className="flex items-center gap-4 text-xs">
-      <span className="font-medium text-emerald-600">{counts.present} present</span>
-      <span className="font-medium text-red-600">{counts.absent} absent</span>
-      <span className="font-medium text-amber-600">{counts.excused} excused</span>
-      <span className="text-slate-400 ml-auto">{total} marked</span>
-    </div>
-  );
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
 interface Props {
   sections: Section[];
 }
 
 export default function AttendanceRecorder({ sections }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(
-    sections.length === 1 ? sections[0].sectionId : null
+    sections.length > 0 ? sections[0].sectionId : null
   );
   const [date, setDate] = useState<string>(todayLocal);
 
@@ -101,6 +77,10 @@ export default function AttendanceRecorder({ sections }: Props) {
 
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "present" | "absent" | "excused" | "unmarked">("all");
 
   // ── Load students for selected section + date ────────────────────────────────
   const loadStudents = useCallback(async (sectionId: string, d: string) => {
@@ -159,7 +139,7 @@ export default function AttendanceRecorder({ sections }: Props) {
       status,
     }));
     if (records.length === 0) {
-      setSaveError("Mark at least one student before saving.");
+      setSaveError("Please mark at least one student before saving.");
       return;
     }
 
@@ -173,7 +153,7 @@ export default function AttendanceRecorder({ sections }: Props) {
         body: JSON.stringify({ sectionId: selectedId, sessionDate: date, records }),
       });
       const data: { saved?: number; error?: string } = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      if (!res.ok) throw new Error(data.error ?? "Failed to save attendance");
       setSaveState("saved");
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Save failed");
@@ -182,332 +162,459 @@ export default function AttendanceRecorder({ sections }: Props) {
   }
 
   const selectedSection = sections.find((s) => s.sectionId === selectedId);
-  const markedCount = Object.keys(attendance).length;
-  const isComplete = students.length > 0 && markedCount === students.length;
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // Filtered students
+  const filteredStudents = useMemo(() => {
+    return students.filter((s) => {
+      const matchesSearch =
+        s.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.rollNumber.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const currentStatus = attendance[s.enrollmentId];
+      if (statusFilter === "all") return matchesSearch;
+      if (statusFilter === "unmarked") return matchesSearch && !currentStatus;
+      return matchesSearch && currentStatus === statusFilter;
+    });
+  }, [students, searchQuery, statusFilter, attendance]);
+
+  // Tally stats
+  const stats = useMemo(() => {
+    const counts = { present: 0, absent: 0, excused: 0, unmarked: 0 };
+    for (const s of students) {
+      const st = attendance[s.enrollmentId];
+      if (st === "present") counts.present++;
+      else if (st === "absent") counts.absent++;
+      else if (st === "excused") counts.excused++;
+      else counts.unmarked++;
+    }
+    const marked = counts.present + counts.absent + counts.excused;
+    const rate = marked > 0 ? Math.round((counts.present / marked) * 100) : 0;
+    return { ...counts, marked, rate };
+  }, [students, attendance]);
+
+  const isComplete = students.length > 0 && stats.unmarked === 0;
+
   return (
-    <div className="grid gap-5 lg:grid-cols-[300px_1fr]">
-      {/* ── Section Sidebar ── */}
-      <aside className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
-          My Sections ({sections.length})
-        </p>
+    <div className="grid gap-6 lg:grid-cols-[320px_1fr] items-start">
+      {/* ── Left Sidebar / Section Selection ── */}
+      <aside className="space-y-4">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-indigo-500" /> Assigned Sections
+          </span>
+          <span className="rounded-full bg-slate-200/80 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+            {sections.length}
+          </span>
+        </div>
 
         {sections.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white py-10 text-center">
-            <p className="text-sm text-slate-500">No sections assigned yet.</p>
-            <p className="mt-1 text-xs text-slate-400">Ask your department admin to create faculty assignments.</p>
-          </div>
-        ) : (
-          sections.map((sec) => {
-            const isActive = sec.sectionId === selectedId;
-            return (
-              <button
-                key={sec.sectionId}
-                onClick={() => setSelectedId(sec.sectionId)}
-                className={`w-full text-left rounded-xl border p-4 transition-all ${
-                  isActive
-                    ? "border-indigo-300 bg-indigo-50 shadow-sm"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
-                }`}
-              >
-                {/* Course code + status badge */}
-                <div className="flex items-start justify-between gap-2">
-                  <p className={`text-sm font-bold ${isActive ? "text-indigo-800" : "text-slate-800"}`}>
-                    {sec.courseCode}
-                  </p>
-                  {sec.sectionStatus !== "open" && (
-                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
-                      {sec.sectionStatus}
-                    </span>
-                  )}
-                </div>
-
-                {/* Course title */}
-                <p className="mt-0.5 text-xs text-slate-600 leading-snug line-clamp-2">{sec.courseTitle}</p>
-
-                {/* Meta */}
-                <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
-                    Sec {sec.sectionLabel}
-                  </span>
-                  <span>{sec.semesterLabel}</span>
-                  <span className="ml-auto text-slate-500">
-                    {sec.enrolledCount}/{sec.sectionCapacity} enrolled
-                  </span>
-                </div>
-
-                {/* Role badge */}
-                {sec.assignmentRole !== "primary" && (
-                  <p className="mt-1.5 text-xs text-indigo-500 capitalize">{sec.assignmentRole.replace("_", " ")}</p>
-                )}
-              </button>
-            );
-          })
-        )}
-      </aside>
-
-      {/* ── Attendance Sheet ── */}
-      <div>
-        {!selectedSection ? (
-          /* Empty state */
-          <div className="flex flex-col items-center justify-center h-80 rounded-2xl border border-dashed border-slate-300 bg-white text-center px-6">
-            <div className="text-5xl mb-4">📋</div>
-            <p className="text-base font-medium text-slate-600">Select a section to start</p>
-            <p className="mt-1 text-sm text-slate-400">
-              {sections.length > 0
-                ? "Click a section from the left panel to load its attendance sheet."
-                : "No sections are assigned to your faculty account yet."}
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-xs">
+            <BookOpen className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-slate-700">No sections assigned</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Department administration has not assigned sections to your profile yet.
             </p>
           </div>
         ) : (
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            {/* Card header */}
-            <div className="border-b border-slate-200 bg-white px-6 py-4">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-slate-900">
-                      {selectedSection.courseCode} — {selectedSection.courseTitle}
-                    </h2>
-                    <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
-                      {selectedSection.credits} cr
+          <div className="space-y-2.5">
+            {sections.map((sec) => {
+              const isActive = sec.sectionId === selectedId;
+              return (
+                <button
+                  key={sec.sectionId}
+                  type="button"
+                  onClick={() => setSelectedId(sec.sectionId)}
+                  className={`w-full text-left rounded-2xl border p-4 transition-all duration-200 relative group overflow-hidden ${
+                    isActive
+                      ? "border-indigo-500 bg-white shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/20"
+                      : "border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/70 shadow-2xs"
+                  }`}
+                >
+                  {/* Left accent bar for active */}
+                  {isActive && (
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-600" />
+                  )}
+
+                  <div className="flex items-start justify-between gap-2">
+                    <span className={`text-sm font-bold tracking-tight ${isActive ? "text-indigo-600" : "text-slate-800"}`}>
+                      {sec.courseCode}
+                    </span>
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                      Sec {sec.sectionLabel}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Section {selectedSection.sectionLabel}
-                    {" · "}
-                    {selectedSection.programCode}
-                    {" · "}
-                    {selectedSection.semesterLabel}
+
+                  <p className="mt-1 text-xs font-medium text-slate-600 line-clamp-2 leading-relaxed">
+                    {sec.courseTitle}
+                  </p>
+
+                  <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 pt-2.5">
+                    <span className="font-medium text-slate-500">{sec.semesterLabel}</span>
+                    <span className="flex items-center gap-1 font-semibold text-slate-700">
+                      <Users className="w-3 h-3 text-indigo-500" />
+                      {sec.enrolledCount} Students
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </aside>
+
+      {/* ── Main Panel / Attendance Sheet ── */}
+      <div className="space-y-4">
+        {!selectedSection ? (
+          <div className="flex flex-col items-center justify-center min-h-[350px] rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-xs">
+            <Calendar className="w-12 h-12 text-slate-300 mb-3" />
+            <h3 className="text-base font-bold text-slate-700">Select a Class Section</h3>
+            <p className="mt-1 text-xs text-slate-400 max-w-sm">
+              Choose an assigned course section from the left navigation panel to load its roster.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-slate-200/90 bg-white shadow-sm overflow-hidden">
+            {/* Header: Course Details & Date Picker */}
+            <div className="border-b border-slate-200/80 p-5 sm:p-6 bg-slate-50/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                      {selectedSection.courseCode} — {selectedSection.courseTitle}
+                    </h2>
+                    <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-700 border border-indigo-200/60">
+                      {selectedSection.credits} Credits
+                    </span>
+                    <span className="rounded-full bg-slate-200/80 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                      Section {selectedSection.sectionLabel}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {selectedSection.programName} ({selectedSection.programCode}) &bull; {selectedSection.semesterLabel}
                   </p>
                 </div>
 
-                {/* Date picker */}
-                <div className="flex items-center gap-2">
-                  <label htmlFor="session-date" className="text-xs font-medium text-slate-500">
-                    Session date
-                  </label>
+                {/* Date Picker Component */}
+                <div className="flex items-center gap-2 self-start sm:self-center bg-white p-1.5 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-xs font-semibold text-slate-500 pl-2 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                    Date:
+                  </span>
                   <input
-                    id="session-date"
                     type="date"
                     value={date}
                     max={todayLocal()}
                     onChange={(e) => setDate(e.target.value)}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 shadow-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
+                    className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs focus:bg-white focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setDate(todayLocal())}
+                    className="text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1.5 rounded-lg transition-colors"
+                  >
+                    Today
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Stat Ribbons */}
+              <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-200/70">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3">
+                  <div className="flex items-center justify-between text-emerald-800">
+                    <span className="text-xs font-medium">Present</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <p className="text-xl font-extrabold text-emerald-700 mt-0.5">{stats.present}</p>
+                </div>
+
+                <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-3">
+                  <div className="flex items-center justify-between text-rose-800">
+                    <span className="text-xs font-medium">Absent</span>
+                    <XCircle className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <p className="text-xl font-extrabold text-rose-700 mt-0.5">{stats.absent}</p>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3">
+                  <div className="flex items-center justify-between text-amber-800">
+                    <span className="text-xs font-medium">Excused</span>
+                    <HelpCircle className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <p className="text-xl font-extrabold text-amber-700 mt-0.5">{stats.excused}</p>
+                </div>
+
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3">
+                  <div className="flex items-center justify-between text-indigo-800">
+                    <span className="text-xs font-medium">Present Rate</span>
+                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <p className="text-xl font-extrabold text-indigo-700 mt-0.5">{stats.rate}%</p>
                 </div>
               </div>
             </div>
 
-            {/* Quick mark + summary bar */}
-            {loadState === "ready" && students.length > 0 && (
-              <div className="border-b border-slate-100 bg-slate-50/60 px-6 py-2.5">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <span className="text-xs font-medium text-slate-500">Mark all:</span>
-                  {(["present", "absent", "excused"] as const).map((s) => (
+            {/* Controls Bar: Batch Actions + Search + Status Filter */}
+            <div className="p-4 sm:px-6 border-b border-slate-200/80 bg-white flex flex-col md:flex-row md:items-center justify-between gap-4">
+              {/* Batch buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Batch:</span>
+                <button
+                  type="button"
+                  onClick={() => markAll("present")}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100/80 transition-colors shadow-2xs"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  All Present
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markAll("absent")}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-300 bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100/80 transition-colors shadow-2xs"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  All Absent
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markAll("excused")}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100/80 transition-colors shadow-2xs"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  All Excused
+                </button>
+              </div>
+
+              {/* Search input and status tabs */}
+              <div className="flex items-center gap-3">
+                <div className="relative w-full sm:w-56">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search name or roll no..."
+                    className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50/60 text-xs focus:bg-white focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/15"
+                  />
+                </div>
+
+                <div className="flex items-center rounded-xl bg-slate-100 p-1">
+                  {(["all", "present", "absent", "unmarked"] as const).map((tab) => (
                     <button
-                      key={s}
-                      onClick={() => markAll(s)}
-                      className={`text-xs font-semibold transition hover:underline ${
-                        s === "present"
-                          ? "text-emerald-600"
-                          : s === "absent"
-                            ? "text-red-600"
-                            : "text-amber-600"
+                      key={tab}
+                      type="button"
+                      onClick={() => setStatusFilter(tab)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold capitalize transition-all ${
+                        statusFilter === tab
+                          ? "bg-white text-indigo-600 shadow-2xs"
+                          : "text-slate-500 hover:text-slate-800"
                       }`}
                     >
-                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                      {tab}
                     </button>
                   ))}
-                  <div className="ml-auto">
-                    <SummaryBar attendance={attendance} />
-                  </div>
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* Student rows */}
-            <div className="min-h-[200px]">
+            {/* Students Table Area */}
+            <div className="min-h-[280px]">
               {loadState === "loading" && (
-                <div className="flex items-center justify-center py-20">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
+                  <RefreshCw className="w-8 h-8 animate-spin text-indigo-600" />
+                  <p className="text-xs font-medium">Fetching registered student roster...</p>
                 </div>
               )}
 
               {loadState === "error" && (
                 <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-                  <div className="text-3xl mb-3">⚠️</div>
-                  <p className="text-sm font-medium text-red-600">{loadError}</p>
+                  <AlertCircle className="w-10 h-10 text-rose-500 mb-2" />
+                  <p className="text-sm font-semibold text-rose-700">{loadError}</p>
                   <button
                     onClick={() => loadStudents(selectedId!, date)}
-                    className="mt-4 text-xs text-indigo-600 hover:underline"
+                    className="mt-3 text-xs font-semibold text-indigo-600 hover:underline"
                   >
-                    Retry
+                    Try Again
                   </button>
                 </div>
               )}
 
               {loadState === "ready" && students.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="text-3xl mb-3">🎓</div>
-                  <p className="text-sm text-slate-500">No registered students in this section.</p>
+                  <Users className="w-10 h-10 text-slate-300 mb-2" />
+                  <p className="text-sm font-semibold text-slate-700">No Registered Students</p>
+                  <p className="text-xs text-slate-400 mt-0.5">There are no students registered for this section yet.</p>
                 </div>
               )}
 
               {loadState === "ready" && students.length > 0 && (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/40 text-xs text-slate-400">
-                      <th className="w-10 px-4 py-2.5 text-center font-medium">#</th>
-                      <th className="px-4 py-2.5 text-left font-medium">Roll No.</th>
-                      <th className="px-4 py-2.5 text-left font-medium">Student Name</th>
-                      <th className="px-4 py-2.5 text-right font-medium">Attendance</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {students.map((student, idx) => {
-                      const current = attendance[student.enrollmentId] ?? null;
-                      return (
-                        <tr
-                          key={student.enrollmentId}
-                          className={`transition-colors ${
-                            current === "present"
-                              ? "bg-emerald-50/30"
-                              : current === "absent"
-                                ? "bg-red-50/30"
-                                : current === "excused"
-                                  ? "bg-amber-50/30"
-                                  : ""
-                          }`}
-                        >
-                          <td className="px-4 py-3 text-center text-xs text-slate-400">{idx + 1}</td>
-                          <td className="px-4 py-3">
-                            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
-                              {student.rollNumber}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-medium text-slate-800">{student.studentName}</td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {(["present", "absent", "excused"] as const).map((s) => (
-                                <label
-                                  key={s}
-                                  className={`cursor-pointer select-none rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                                    current === s
-                                      ? statusBadge(s)
-                                      : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
-                                  }`}
-                                >
-                                  <input
-                                    type="radio"
-                                    name={`att-${student.enrollmentId}`}
-                                    value={s}
-                                    checked={current === s}
-                                    onChange={() => setStatus(student.enrollmentId, s)}
-                                    className="sr-only"
-                                  />
-                                  <span className="capitalize">{s}</span>
-                                </label>
-                              ))}
-                            </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200/80 bg-slate-50/70 text-[11px] uppercase tracking-wider font-semibold text-slate-500">
+                        <th className="py-3 px-4 w-12 text-center">#</th>
+                        <th className="py-3 px-4">Roll Number</th>
+                        <th className="py-3 px-4">Student Name</th>
+                        <th className="py-3 px-4 text-center">Current Status</th>
+                        <th className="py-3 px-4 text-right pr-6">Mark Attendance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredStudents.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-xs text-slate-400 font-medium">
+                            No students match your filter criteria.
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      ) : (
+                        filteredStudents.map((student, idx) => {
+                          const current = attendance[student.enrollmentId] ?? null;
+                          return (
+                            <tr
+                              key={student.enrollmentId}
+                              className={`transition-colors ${
+                                current === "present"
+                                  ? "bg-emerald-50/20 hover:bg-emerald-50/40"
+                                  : current === "absent"
+                                  ? "bg-rose-50/20 hover:bg-rose-50/40"
+                                  : current === "excused"
+                                  ? "bg-amber-50/20 hover:bg-amber-50/40"
+                                  : "hover:bg-slate-50/70"
+                              }`}
+                            >
+                              <td className="py-3.5 px-4 text-center text-xs text-slate-400 font-medium">
+                                {idx + 1}
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/70">
+                                  {student.rollNumber}
+                                </span>
+                              </td>
+
+                              <td className="py-3.5 px-4 font-semibold text-slate-900">
+                                {student.studentName}
+                              </td>
+
+                              <td className="py-3.5 px-4 text-center">
+                                {current ? (
+                                  <span
+                                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full capitalize ${
+                                      current === "present"
+                                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                        : current === "absent"
+                                        ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                        : "bg-amber-100 text-amber-800 border border-amber-200"
+                                    }`}
+                                  >
+                                    {current === "present" && <CheckCircle2 className="w-3 h-3" />}
+                                    {current === "absent" && <XCircle className="w-3 h-3" />}
+                                    {current === "excused" && <HelpCircle className="w-3 h-3" />}
+                                    {current}
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] font-medium text-slate-400 italic">
+                                    Unmarked
+                                  </span>
+                                )}
+                              </td>
+
+                              <td className="py-3.5 px-4 text-right pr-6">
+                                <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 border border-slate-200">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatus(student.enrollmentId, "present")}
+                                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                      current === "present"
+                                        ? "bg-emerald-600 text-white shadow-xs"
+                                        : "text-slate-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                    }`}
+                                  >
+                                    P
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatus(student.enrollmentId, "absent")}
+                                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                      current === "absent"
+                                        ? "bg-rose-600 text-white shadow-xs"
+                                        : "text-slate-600 hover:text-rose-700 hover:bg-rose-50"
+                                    }`}
+                                  >
+                                    A
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatus(student.enrollmentId, "excused")}
+                                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                      current === "excused"
+                                        ? "bg-amber-600 text-white shadow-xs"
+                                        : "text-slate-600 hover:text-amber-700 hover:bg-amber-50"
+                                    }`}
+                                  >
+                                    E
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
-            {/* Footer / save bar */}
+            {/* Bottom Sticky Action Bar */}
             {loadState === "ready" && students.length > 0 && (
-              <div className="border-t border-slate-200 bg-slate-50/60 px-6 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  {/* Status message */}
-                  <div className="text-sm">
-                    {saveState === "saved" && (
-                      <span className="flex items-center gap-2 text-emerald-600">
-                        <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path
-                            fillRule="evenodd"
-                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        <span className="font-medium">Attendance saved for {date}</span>
-                      </span>
-                    )}
-                    {(saveState === "error" || saveError) && (
-                      <span className="text-red-600">{saveError}</span>
-                    )}
-                    {saveState === "idle" && !isComplete && (
-                      <span className="text-slate-400">
-                        {markedCount}/{students.length} students marked
-                      </span>
-                    )}
-                    {saveState === "idle" && isComplete && (
-                      <span className="text-slate-500">All {students.length} students marked — ready to save</span>
-                    )}
+              <div className="border-t border-slate-200/90 bg-slate-50/90 p-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-700">
+                      {stats.marked} of {students.length} students marked
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {stats.unmarked === 0 ? "All students marked! Ready to save." : `${stats.unmarked} students remaining.`}
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    {!isComplete && saveState !== "saved" && (
-                      <p className="text-xs text-amber-600">
-                        {students.length - markedCount} student{students.length - markedCount !== 1 ? "s" : ""}{" "}
-                        unmarked
-                      </p>
-                    )}
-                    <button
-                      onClick={handleSave}
-                      disabled={saveState === "saving" || markedCount === 0}
-                      className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {saveState === "saving" ? (
-                        <span className="flex items-center gap-2">
-                          <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                          </svg>
-                          Saving…
-                        </span>
-                      ) : (
-                        "Save Attendance"
-                      )}
-                    </button>
-                  </div>
+                  {saveState === "saved" && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-200">
+                      <Check className="w-3.5 h-3.5" /> Saved Successfully!
+                    </span>
+                  )}
+
+                  {saveState === "error" && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-800 border border-rose-200">
+                      <AlertCircle className="w-3.5 h-3.5" /> {saveError}
+                    </span>
+                  )}
                 </div>
 
-                {/* Completion progress bar */}
-                <div className="mt-3 h-1 w-full rounded-full bg-slate-200">
-                  <div
-                    className={`h-1 rounded-full transition-all duration-300 ${
-                      isComplete ? "bg-emerald-500" : "bg-indigo-500"
-                    }`}
-                    style={{ width: `${students.length > 0 ? (markedCount / students.length) * 100 : 0}%` }}
-                  />
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saveState === "saving" || stats.marked === 0}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 transition-all cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {saveState === "saving" ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Saving Records...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save Attendance Sheet</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             )}
           </div>
         )}
-
-        {/* Percentage legend */}
-        <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500 px-1">
-          <span className="flex items-center gap-1.5">
-            <span className={`inline-block h-2 w-2 rounded-full bg-emerald-500`} />
-            ≥ 75% — Good standing
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className={`inline-block h-2 w-2 rounded-full bg-amber-500`} />
-            60–74% — Warning
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className={`inline-block h-2 w-2 rounded-full bg-red-500`} />
-            &lt; 60% — Critical
-          </span>
-        </div>
       </div>
     </div>
   );

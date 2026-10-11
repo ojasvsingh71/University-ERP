@@ -9,175 +9,66 @@ import {
   attendanceRecords,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import {
+  CalendarCheck2,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Sparkles,
+  BookOpen,
+  TrendingUp,
+  Award,
+  Layers
+} from "lucide-react";
 
 interface Props {
   userId: string;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function pctColor(pct: number | null) {
-  if (pct === null) return { bar: "bg-slate-200", text: "text-slate-400", label: "No classes yet" };
-  if (pct >= 75) return { bar: "bg-emerald-500", text: "text-emerald-600", label: "Good" };
-  if (pct >= 60) return { bar: "bg-amber-500", text: "text-amber-600", label: "Warning" };
-  return { bar: "bg-red-500", text: "text-red-600", label: "Critical" };
+function pctStyle(pct: number | null) {
+  if (pct === null) {
+    return {
+      bar: "bg-slate-300",
+      text: "text-slate-500",
+      bgBadge: "bg-slate-100 text-slate-700 border-slate-200",
+      status: "No Sessions",
+    };
+  }
+  if (pct >= 85) {
+    return {
+      bar: "bg-emerald-500",
+      text: "text-emerald-600",
+      bgBadge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      status: "Excellent",
+    };
+  }
+  if (pct >= 75) {
+    return {
+      bar: "bg-teal-500",
+      text: "text-teal-600",
+      bgBadge: "bg-teal-50 text-teal-700 border-teal-200",
+      status: "Good Standing",
+    };
+  }
+  if (pct >= 60) {
+    return {
+      bar: "bg-amber-500",
+      text: "text-amber-600",
+      bgBadge: "bg-amber-50 text-amber-700 border-amber-200",
+      status: "Attendance Warning",
+    };
+  }
+  return {
+    bar: "bg-rose-500",
+    text: "text-rose-600",
+    bgBadge: "bg-rose-50 text-rose-700 border-rose-200",
+    status: "Critically Low",
+  };
 }
-
-// ── Overall summary card ──────────────────────────────────────────────────────
-
-function OverallCard({
-  totalSessions,
-  totalPresent,
-  totalCourses,
-}: {
-  totalSessions: number;
-  totalPresent: number;
-  totalCourses: number;
-}) {
-  const pct = totalSessions > 0 ? Math.round((totalPresent / totalSessions) * 100) : null;
-  const c = pctColor(pct);
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">Overall Attendance</p>
-          <p className={`mt-1 text-4xl font-extrabold tabular-nums ${c.text}`}>
-            {pct !== null ? `${pct}%` : "–"}
-          </p>
-          <p className="mt-1 text-xs text-slate-400">
-            {totalPresent} present out of {totalSessions} classes across {totalCourses} course
-            {totalCourses !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div
-          className={`flex h-14 w-14 items-center justify-center rounded-xl text-2xl ${
-            pct === null
-              ? "bg-slate-50"
-              : pct >= 75
-                ? "bg-emerald-50"
-                : pct >= 60
-                  ? "bg-amber-50"
-                  : "bg-red-50"
-          }`}
-        >
-          {pct === null ? "📅" : pct >= 75 ? "✅" : pct >= 60 ? "⚠️" : "🚨"}
-        </div>
-      </div>
-
-      {/* Overall progress bar */}
-      <div className="mt-4 h-2 w-full rounded-full bg-slate-100">
-        <div
-          className={`h-2 rounded-full transition-all ${c.bar}`}
-          style={{ width: `${pct ?? 0}%` }}
-        />
-      </div>
-
-      {/* Legend */}
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" /> ≥75% — Good
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-amber-500" /> 60–74% — Warning
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-red-500" /> &lt;60% — Critical
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ── Per-course card ───────────────────────────────────────────────────────────
-
-function CourseCard({
-  courseCode,
-  courseTitle,
-  credits,
-  sectionLabel,
-  semesterLabel,
-  totalSessions,
-  present,
-  absent,
-  excused,
-  percentage,
-}: {
-  courseCode: string;
-  courseTitle: string;
-  credits: number;
-  sectionLabel: string;
-  semesterLabel: string;
-  totalSessions: number;
-  present: number;
-  absent: number;
-  excused: number;
-  percentage: number | null;
-}) {
-  const c = pctColor(percentage);
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold text-slate-800">{courseCode}</span>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
-              {credits} cr
-            </span>
-            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-600">
-              Sec {sectionLabel}
-            </span>
-          </div>
-          <p className="mt-0.5 text-xs text-slate-600 leading-snug">{courseTitle}</p>
-          <p className="mt-0.5 text-xs text-slate-400">{semesterLabel}</p>
-        </div>
-
-        {/* Percentage badge */}
-        <div className="flex flex-col items-end shrink-0">
-          <span className={`text-2xl font-extrabold tabular-nums ${c.text}`}>
-            {percentage !== null ? `${percentage}%` : "–"}
-          </span>
-          <span className={`text-xs font-medium ${c.text}`}>{c.label}</span>
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div className="mt-3 h-1.5 w-full rounded-full bg-slate-100">
-        <div
-          className={`h-1.5 rounded-full ${c.bar}`}
-          style={{ width: `${percentage ?? 0}%` }}
-        />
-      </div>
-
-      {/* Stats row */}
-      <div className="mt-3 grid grid-cols-3 divide-x divide-slate-100 text-center text-xs">
-        <div className="pr-2">
-          <p className="font-semibold text-emerald-600">{present}</p>
-          <p className="text-slate-400">Present</p>
-        </div>
-        <div className="px-2">
-          <p className="font-semibold text-red-600">{absent}</p>
-          <p className="text-slate-400">Absent</p>
-        </div>
-        <div className="pl-2">
-          <p className="font-semibold text-amber-600">{excused}</p>
-          <p className="text-slate-400">Excused</p>
-        </div>
-      </div>
-
-      {totalSessions === 0 && (
-        <p className="mt-2 text-center text-xs text-slate-400 italic">No sessions recorded yet</p>
-      )}
-    </div>
-  );
-}
-
-// ── Main component ────────────────────────────────────────────────────────────
 
 export default async function StudentDashboard({ userId }: Props) {
-  // ── 1. Student profile ────────────────────────────────────────────────────
+  // ── 1. Resolve student profile ──────────────────────────────────────────────
   const [studentProfile] = await db
     .select({ id: students.id, rollNumber: students.rollNumber })
     .from(students)
@@ -186,10 +77,14 @@ export default async function StudentDashboard({ userId }: Props) {
 
   if (!studentProfile) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-20 text-center">
-        <div className="text-4xl mb-4">⚠️</div>
-        <p className="text-sm font-medium text-slate-600">No student profile is linked to your account.</p>
-        <p className="mt-1 text-xs text-slate-400">Contact the registrar to create your student record.</p>
+      <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white py-20 px-6 text-center max-w-lg mx-auto shadow-sm">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 mb-4 border border-amber-200">
+          <AlertTriangle className="w-8 h-8" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-800">No Student Profile Linked</h3>
+        <p className="mt-1 text-sm text-slate-500 max-w-sm">
+          Your account is not currently linked to an active student registration profile. Please contact the registrar.
+        </p>
       </div>
     );
   }
@@ -231,11 +126,14 @@ export default async function StudentDashboard({ userId }: Props) {
     })
   );
 
-  // ── 4. Aggregate totals for the overall card ──────────────────────────────
   const totalSessions = enrollmentData.reduce((s, e) => s + e.total, 0);
   const totalPresent = enrollmentData.reduce((s, e) => s + e.present, 0);
+  const totalAbsent = enrollmentData.reduce((s, e) => s + e.absent, 0);
+  const totalExcused = enrollmentData.reduce((s, e) => s + e.excused, 0);
+  const overallPct = totalSessions > 0 ? Math.round((totalPresent / totalSessions) * 100) : null;
+  const overallStyle = pctStyle(overallPct);
 
-  // ── 5. Group by semester for display ──────────────────────────────────────
+  // Group by semester
   const bySemester = enrollmentData.reduce<Record<string, typeof enrollmentData>>(
     (acc, e) => {
       if (!acc[e.semesterLabel]) acc[e.semesterLabel] = [];
@@ -246,85 +144,185 @@ export default async function StudentDashboard({ userId }: Props) {
   );
 
   return (
-    <>
-      {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">My Attendance</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Roll No:{" "}
-          <span className="font-mono font-semibold text-slate-700">{studentProfile.rollNumber}</span>
-          {" · "}
-          {myEnrollments.length} enrolled course{myEnrollments.length !== 1 ? "s" : ""}
-        </p>
+    <div className="space-y-8">
+      {/* ── Student Header Card ── */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 sm:p-8 text-white shadow-xl shadow-slate-900/10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/20 px-2.5 py-0.5 text-xs font-semibold text-indigo-300 border border-indigo-400/20">
+              <Sparkles className="w-3.5 h-3.5" />
+              Academic Attendance Records
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              My Attendance Dashboard
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300">
+              Roll Number: <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">{studentProfile.rollNumber}</span>
+              {" &bull; "}
+              {myEnrollments.length} Enrolled Courses
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="rounded-2xl bg-white/10 backdrop-blur-md p-4 border border-white/10 text-center min-w-[120px]">
+              <p className="text-xs text-indigo-200">Overall Rate</p>
+              <p className="text-3xl font-black text-white mt-1">
+                {overallPct !== null ? `${overallPct}%` : "—"}
+              </p>
+              <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${overallStyle.bgBadge}`}>
+                {overallStyle.status}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Overall summary */}
-      <OverallCard
-        totalSessions={totalSessions}
-        totalPresent={totalPresent}
-        totalCourses={myEnrollments.length}
-      />
+      {/* ── KPI Overall Summary Cards ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-xs font-semibold">Total Classes</span>
+            <BookOpen className="w-4 h-4 text-indigo-500" />
+          </div>
+          <p className="text-2xl font-extrabold text-slate-900 mt-1">{totalSessions}</p>
+          <span className="text-[11px] text-slate-400">Recorded sessions</span>
+        </div>
 
-      {/* No enrollments */}
+        <div className="rounded-2xl border border-emerald-200/90 bg-emerald-50/50 p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-emerald-700">
+            <span className="text-xs font-semibold">Attended</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          </div>
+          <p className="text-2xl font-extrabold text-emerald-700 mt-1">{totalPresent}</p>
+          <span className="text-[11px] text-emerald-600/80">Present lectures</span>
+        </div>
+
+        <div className="rounded-2xl border border-rose-200/90 bg-rose-50/50 p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-rose-700">
+            <span className="text-xs font-semibold">Missed</span>
+            <XCircle className="w-4 h-4 text-rose-600" />
+          </div>
+          <p className="text-2xl font-extrabold text-rose-700 mt-1">{totalAbsent}</p>
+          <span className="text-[11px] text-rose-600/80">Absences logged</span>
+        </div>
+
+        <div className="rounded-2xl border border-amber-200/90 bg-amber-50/50 p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-amber-700">
+            <span className="text-xs font-semibold">Excused</span>
+            <HelpCircle className="w-4 h-4 text-amber-600" />
+          </div>
+          <p className="text-2xl font-extrabold text-amber-700 mt-1">{totalExcused}</p>
+          <span className="text-[11px] text-amber-600/80">Approved leaves</span>
+        </div>
+      </div>
+
+      {/* ── Empty state if no courses ── */}
       {myEnrollments.length === 0 && (
-        <div className="mt-6 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-14 text-center">
-          <div className="text-3xl mb-3">📚</div>
-          <p className="text-sm text-slate-500">You are not enrolled in any courses yet.</p>
+        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-xs">
+          <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-base font-bold text-slate-700">No Course Enrollments Found</h3>
+          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+            You are not registered in any course sections for the current academic session.
+          </p>
         </div>
       )}
 
-      {/* Per semester sections */}
-      {Object.entries(bySemester).map(([semLabel, courses]) => {
-        const semPresentCount = courses.reduce((s, c) => s + c.present, 0);
-        const semTotalCount = courses.reduce((s, c) => s + c.total, 0);
-        const semPct = semTotalCount > 0 ? Math.round((semPresentCount / semTotalCount) * 100) : null;
+      {/* ── Semester Sections & Course Cards ── */}
+      {Object.entries(bySemester).map(([semLabel, coursesList]) => {
+        const semPresent = coursesList.reduce((s, c) => s + c.present, 0);
+        const semTotal = coursesList.reduce((s, c) => s + c.total, 0);
+        const semPct = semTotal > 0 ? Math.round((semPresent / semTotal) * 100) : null;
+        const semStyle = pctStyle(semPct);
 
         return (
-          <section key={semLabel} className="mt-8">
-            {/* Semester heading */}
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700">{semLabel}</h2>
+          <section key={semLabel} className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-indigo-600" />
+                <h2 className="text-base font-bold text-slate-900">{semLabel}</h2>
+              </div>
               {semPct !== null && (
-                <span
-                  className={`text-xs font-semibold ${
-                    semPct >= 75
-                      ? "text-emerald-600"
-                      : semPct >= 60
-                        ? "text-amber-600"
-                        : "text-red-600"
-                  }`}
-                >
-                  Semester avg: {semPct}%
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${semStyle.bgBadge}`}>
+                  Semester Average: {semPct}%
                 </span>
               )}
             </div>
 
-            {/* Grid of course cards */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {courses.map((e) => (
-                <CourseCard
-                  key={e.enrollmentId}
-                  courseCode={e.courseCode}
-                  courseTitle={e.courseTitle}
-                  credits={e.credits}
-                  sectionLabel={e.sectionLabel}
-                  semesterLabel={e.semesterLabel}
-                  totalSessions={e.total}
-                  present={e.present}
-                  absent={e.absent}
-                  excused={e.excused}
-                  percentage={e.percentage}
-                />
-              ))}
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {coursesList.map((course) => {
+                const style = pctStyle(course.percentage);
+                return (
+                  <div
+                    key={course.enrollmentId}
+                    className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between space-y-4"
+                  >
+                    <div>
+                      {/* Top labels */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-sm text-slate-900">
+                              {course.courseCode}
+                            </span>
+                            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                              {course.credits} Credits
+                            </span>
+                          </div>
+                          <h3 className="text-xs font-semibold text-slate-600 mt-1 line-clamp-2">
+                            {course.courseTitle}
+                          </h3>
+                        </div>
+
+                        <span className={`text-xl font-black tabular-nums ${style.text}`}>
+                          {course.percentage !== null ? `${course.percentage}%` : "—"}
+                        </span>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="mt-4 space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400 font-medium">Attendance Rate</span>
+                          <span className={`font-bold ${style.text}`}>{style.status}</span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${style.bar}`}
+                            style={{ width: `${course.percentage ?? 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats pills footer */}
+                    <div className="pt-3 border-t border-slate-100 grid grid-cols-3 divide-x divide-slate-100 text-center text-xs">
+                      <div>
+                        <p className="font-bold text-emerald-600">{course.present}</p>
+                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Present</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-rose-600">{course.absent}</p>
+                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Absent</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-amber-600">{course.excused}</p>
+                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Excused</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
         );
       })}
 
-      {/* Bottom note */}
-      <p className="mt-8 text-xs text-slate-400 text-center">
-        Attendance is updated by your faculty after each session. Contact your faculty for discrepancies.
-      </p>
-    </>
+      {/* University policy note */}
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 text-xs text-indigo-900/80 flex items-center gap-3">
+        <Award className="w-5 h-5 text-indigo-600 shrink-0" />
+        <p>
+          <span className="font-bold">Attendance Policy:</span> A minimum attendance of 75% is mandatory to sit for final semester examinations. Sessions are updated live upon faculty submission.
+        </p>
+      </div>
+    </div>
   );
 }

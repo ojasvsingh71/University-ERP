@@ -1,27 +1,62 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { auth, signOut } from "@/lib/auth";
+import { Navbar } from "@/components/Navbar";
+import { ChevronRight, CalendarCheck2, Home } from "lucide-react";
 
-export const metadata: Metadata = { title: "Attendance" };
+export const metadata: Metadata = {
+  title: "Attendance Management",
+  description: "Record section attendance, view attendance rates, and analyze lecture sessions.",
+};
 
-export default function AttendanceLayout({ children }: { children: React.ReactNode }) {
+export default async function AttendanceLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      {/* Sub-nav breadcrumb */}
-      <div className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex h-12 max-w-6xl items-center gap-2 px-4 sm:px-6 text-sm">
-          <Link href="/" className="text-slate-400 hover:text-slate-600 transition-colors">
-            Dashboard
-          </Link>
-          <svg className="h-4 w-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          <span className="font-medium text-slate-700">Attendance</span>
+      {/* Global Navbar */}
+      <Navbar
+        user={session?.user ? { name: session.user.name, email: session.user.email, role: session.user.role } : undefined}
+        onSignOutAction={async () => {
+          "use server";
+          await signOut();
+        }}
+      />
+
+      {/* Sub-nav breadcrumbs bar */}
+      <div className="border-b border-slate-200/80 bg-white/60 backdrop-blur-xs">
+        <div className="mx-auto flex h-11 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 text-xs">
+          <nav className="flex items-center gap-2 text-slate-500 font-medium">
+            <Link
+              href="/"
+              className="flex items-center gap-1 hover:text-indigo-600 transition-colors"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>Dashboard</span>
+            </Link>
+            <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
+            <span className="flex items-center gap-1 text-slate-900 font-semibold">
+              <CalendarCheck2 className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Attendance Module</span>
+            </span>
+          </nav>
+
+          <span className="hidden sm:inline-flex items-center gap-1.5 text-slate-400 text-[11px]">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Live Sync Active
+          </span>
         </div>
       </div>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
+      {/* Main Content */}
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         {children}
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-200/80 bg-white py-6 text-center text-xs text-slate-400">
+        Attendance Management System &bull; University ERP
+      </footer>
     </div>
   );
 }
