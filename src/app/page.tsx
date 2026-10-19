@@ -117,7 +117,7 @@ const MODULE_CARDS: Record<string, ModuleItem[]> = {
       description: "Review and approve faculty-entered marks before grade computations.",
       iconName: "checkCircle",
       color: "from-teal-500 to-emerald-600",
-      href: "/api/exams/marks",
+      href: "/exams/controller",
     },
   ],
   hod: [
@@ -135,23 +135,23 @@ const MODULE_CARDS: Record<string, ModuleItem[]> = {
       description: "Authorize and approve submitted student examination marks.",
       iconName: "checkCircle",
       color: "from-teal-500 to-emerald-600",
-      href: "/api/exams/marks",
+      href: "/exams/controller",
     },
   ],
   examination_controller: [
     {
-      label: "Publish Results",
+      label: "Controller Portal & Publishing",
       description: "Calculate GPA/CGPA, verify grade bands, and publish tamper-proof transcripts.",
       iconName: "fileCheck",
       color: "from-indigo-500 to-violet-600",
-      href: "/api/exams/results",
+      href: "/exams/controller",
     },
     {
       label: "Examination Schedules",
       description: "Manage mid-term, final, and practical examination timetables.",
       iconName: "clipboardList",
       color: "from-blue-500 to-indigo-600",
-      href: "/api/exams/marks",
+      href: "/exams/controller",
     },
   ],
   faculty: [
@@ -169,7 +169,7 @@ const MODULE_CARDS: Record<string, ModuleItem[]> = {
       description: "Draft and submit marks for assignments, practicals, and examinations.",
       iconName: "penTool",
       color: "from-amber-500 to-orange-600",
-      href: "/api/exams/marks",
+      href: "/exams/faculty",
     },
   ],
   student: [
@@ -187,7 +187,7 @@ const MODULE_CARDS: Record<string, ModuleItem[]> = {
       description: "View published semester examination outcomes, GPA, and transcripts.",
       iconName: "trophy",
       color: "from-emerald-500 to-teal-600",
-      href: "/api/exams/results",
+      href: "/exams/results",
     },
     {
       label: "Tuition & Fees",
@@ -212,7 +212,7 @@ const MODULE_CARDS: Record<string, ModuleItem[]> = {
       description: "View verified academic results, grade reports, and GPA progress.",
       iconName: "trophy",
       color: "from-emerald-500 to-teal-600",
-      href: "/api/exams/results",
+      href: "/exams/results",
     },
     {
       label: "Fee Balances",
@@ -376,11 +376,11 @@ export default async function HomePage() {
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {cards.map((card) => {
-              const isDirectUi = card.href.startsWith("/attendance");
+            {cards.map((card, index) => {
+              const isDirectUi = card.href.startsWith("/attendance") || card.href.startsWith("/exams");
               return (
                 <Link
-                  key={card.href}
+                  key={`${card.href}-${index}`}
                   href={card.href}
                   className={`group relative flex flex-col justify-between rounded-3xl border bg-white p-6 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1 transition-all duration-200 overflow-hidden ${
                     card.highlight

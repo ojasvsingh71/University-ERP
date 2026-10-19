@@ -9,7 +9,16 @@ const ROLE_PROTECTED_PREFIXES: { prefix: string; roles: string[] }[] = [
   { prefix: "/api/attendance", roles: ["faculty", "super_admin", "department_admin", "student", "parent"] },
   {
     prefix: "/api/exams",
-    roles: ["faculty", "hod", "department_admin", "examination_controller", "super_admin"],
+    roles: [
+      "faculty",
+      "hod",
+      "department_admin",
+      "examination_controller",
+      "super_admin",
+      "university_admin",
+      "student",
+      "parent",
+    ],
   },
   { prefix: "/api/fees", roles: ["super_admin", "registrar", "student", "parent"] },
   { prefix: "/api/audit", roles: ["auditor", "super_admin"] },
@@ -32,8 +41,9 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
+  const userRole = (session.user?.role ?? "").toLowerCase();
   const rule = ROLE_PROTECTED_PREFIXES.find((r) => pathname.startsWith(r.prefix));
-  if (rule && !rule.roles.includes(session.user.role)) {
+  if (rule && !rule.roles.some((r) => r.toLowerCase() === userRole)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

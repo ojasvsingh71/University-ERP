@@ -31,6 +31,7 @@ export type Permission =
   | "verify_marks"
   | "compute_results"
   | "publish_results"
+  | "schedule_exams"
   | "view_own_results"
   | "manage_fees"
   | "make_payment"
@@ -45,12 +46,17 @@ const ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     "manage_faculty",
     "manage_fees",
     "view_audit_log",
+    "enter_marks",
+    "verify_marks",
+    "compute_results",
+    "publish_results",
+    "schedule_exams",
   ],
-  university_admin: ["manage_academic_structure", "manage_students", "manage_faculty"],
+  university_admin: ["manage_academic_structure", "manage_students", "manage_faculty", "schedule_exams"],
   registrar: ["manage_students", "manage_enrollment"],
   department_admin: ["manage_academic_structure", "manage_assessment_templates", "verify_marks"],
   hod: ["verify_marks", "manage_assessment_templates"],
-  examination_controller: ["compute_results", "publish_results"],
+  examination_controller: ["compute_results", "publish_results", "schedule_exams", "verify_marks"],
   faculty: ["record_attendance", "enter_marks"],
   student: ["view_own_attendance", "view_own_results", "view_own_fees", "make_payment"],
   parent: ["view_own_attendance", "view_own_results", "view_own_fees"],
