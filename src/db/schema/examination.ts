@@ -73,8 +73,22 @@ export const revaluationRequests = pgTable(
   (table) => [index("revaluation_result_idx").on(table.resultId)]
 );
 
+export const examinationsRelations = relations(examinations, ({ one }) => ({
+  courseOffering: one(courseOfferings, {
+    fields: [examinations.courseOfferingId],
+    references: [courseOfferings.id],
+  }),
+}));
+
 export const resultsRelations = relations(results, ({ one, many }) => ({
   enrollment: one(enrollments, { fields: [results.enrollmentId], references: [enrollments.id] }),
   gradeBand: one(gradeBands, { fields: [results.gradeBandId], references: [gradeBands.id] }),
   revaluationRequests: many(revaluationRequests),
 }));
+
+export const revaluationRequestsRelations = relations(revaluationRequests, ({ one }) => ({
+  result: one(results, { fields: [revaluationRequests.resultId], references: [results.id] }),
+  requestedByUser: one(users, { fields: [revaluationRequests.requestedByUserId], references: [users.id] }),
+  decidedByUser: one(users, { fields: [revaluationRequests.decidedByUserId], references: [users.id] }),
+}));
+
